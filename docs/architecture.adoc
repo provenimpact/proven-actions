@@ -1,0 +1,158 @@
+= System Architecture: skill-stats
+:version: 1.0.0
+:last-updated: 2026-03-11
+:toc:
+
+== Overview
+
+skill-stats is a GitHub Action that analyzes Agent Skills directories and produces token cost statistics. It follows the Agent Skills progressive disclosure model to measure how much LLM context a skill consumes at each loading tier.
+
+== System Context (C4 Level 1)
+
+[source,mermaid]
+----
+C4Context
+    title System Context: skill-stats
+
+    Person(author, "Skill Author", "Creates and maintains Agent Skills")
+    System(skillstats, "skill-stats", "GitHub Action that analyzes Agent Skills token costs")
+    System_Ext(github, "GitHub Actions", "CI/CD pipeline runner")
+    System_Ext(shields, "Shields.io", "Badge rendering service")
+    System_Ext(repo, "Git Repository", "Contains Agent Skill directories")
+
+    Rel(author, github, "Triggers workflow")
+    Rel(github, skillstats, "Executes action")
+    Rel(skillstats, repo, "Reads skill files")
+    Rel(skillstats, github, "Writes job summary, sets outputs")
+    Rel(shields, skillstats, "Reads badge JSON endpoints")
+    Rel(author, shields, "Embeds badge URLs in README")
+----
+
+== Container Diagram (C4 Level 2)
+
+[source,mermaid]
+----
+C4Container
+    title Container: skill-stats Action
+
+    Container(main, "Main Entry Point", "TypeScript/Node.js", "Reads inputs, orchestrates pipeline, writes outputs")
+    Container(discovery, "Discovery Module", "TypeScript", "Finds skill directories at a given path")
+    Container(parser, "Parser Module", "TypeScript", "Parses SKILL.md frontmatter and enumerates files")
+    Container(analyzer, "Analyzer Module", "TypeScript", "Calculates token counts using tiktoken cl100k_base")
+    Container(output, "Output Module", "TypeScript", "Generates badges, markdown summaries, action outputs")
+
+    ContainerDb(tiktoken, "tiktoken", "WASM", "cl100k_base tokenizer encoding")
+
+    Rel(main, discovery, "discoverSkills(path)")
+    Rel(main, parser, "parseSkill(discovered)")
+    Rel(main, analyzer, "analyzeSkill(parsed)")
+    Rel(main, output, "generateBadgeJson(), generateMarkdownSummary()")
+    Rel(analyzer, tiktoken, "encode(text)")
+----
+
+== Data Flow
+
+[source,mermaid]
+----
+flowchart LR
+    subgraph input ["Input"]
+        PATH["Action input: path"]
+        BADGE_DIR["Action input: badge-output-dir"]
+    end
+
+    subgraph pipeline ["Processing Pipeline"]
+        DISC["Discovery"] --> PARSE["Parser"]
+        PARSE --> ANAL["Analyzer"]
+        ANAL --> OUT["Output"]
+    end
+
+    subgraph artifacts ["Artifacts"]
+        BADGE_JSON["Badge JSON files"]
+        JOB_SUMMARY["Job Summary (Markdown)"]
+        OUTPUTS["Action outputs (stats_json, min/max tokens, rating)"]
+    end
+
+    PATH --> DISC
+    BADGE_DIR --> OUT
+    OUT --> BADGE_JSON
+    OUT --> JOB_SUMMARY
+    OUT --> OUTPUTS
+----
+
+== Module Responsibilities
+
+|===
+| Module | Source | Responsibility
+
+| Main
+| `src/main.ts`
+| GitHub Action entry point. Reads `@actions/core` inputs, orchestrates the pipeline, writes outputs and job summary.
+
+| Discovery
+| `src/discovery.ts`
+| Finds Agent Skill directories. Single-skill mode (SKILL.md at root) or multi-skill mode (scan subdirectories).
+
+| Parser
+| `src/parser.ts`
+| Parses SKILL.md using `gray-matter` for frontmatter extraction. Validates metadata against Agent Skills spec. Enumerates and categorizes all files.
+
+| Analyzer
+| `src/analyzer.ts`
+| Token counting via tiktoken cl100k_base. Computes progressive disclosure tiers (catalog, instructions, resources). Classifies context budget rating.
+
+| Output
+| `src/output.ts`
+| Generates Shields.io badge JSON, markdown summary tables, and formatted token counts.
+
+| Types
+| `src/types.ts`
+| Shared TypeScript interfaces and type definitions.
+|===
+
+== Technology Stack
+
+|===
+| Component | Technology | Decision
+
+| Runtime
+| Node.js 20
+| ADR-0001
+
+| Language
+| TypeScript 5.x (ESM, NodeNext)
+| ADR-0001
+
+| Tokenizer
+| tiktoken (cl100k_base)
+| ADR-0002
+
+| Badge format
+| Shields.io JSON endpoint
+| ADR-0003
+
+| Bundler
+| Rollup
+| Bundles to single ESM dist/index.js
+
+| Test framework
+| Vitest
+| Fast, TypeScript-native
+
+| Frontmatter parser
+| gray-matter
+| Mature, handles YAML edge cases
+|===
+
+== Deployment
+
+The action is deployed as a bundled `dist/index.js` file committed to the repository. GitHub Actions runners execute it directly using Node.js 20 (`runs.using: node20` in `action.yml`). No Docker, no installation step.
+
+Users reference it in workflows as:
+
+[source,yaml]
+----
+- uses: provenimpact/proven-actions@v1
+  with:
+    path: .agents/skills
+    badge-output-dir: ./badges
+----

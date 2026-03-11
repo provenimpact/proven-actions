@@ -1,0 +1,114 @@
+= Tasks: Skill Stats
+:version: 1.1.0
+:status: Current
+:last-updated: 2026-03-11
+:feature: skill-stats
+:toc:
+
+== Phase 1: Core Types and Discovery
+
+=== Task 1.1: Define shared types [P]
+File:: `src/types.ts`
+Scenarios:: All (shared data model)
+Description:: Create the TypeScript interfaces used across all modules: `DiscoveredSkill`, `SkillMetadata`, `ParsedSkill`, `SkillFile`, `ValidationIssue`, `TierBreakdown`, `FileTokenCount`, `ContextRating`, `SkillAnalysis`, `BadgeJson`.
+
+=== Task 1.2: Implement discovery module [P]
+File:: `src/discovery.ts`
+Scenarios:: @SS-004, @SS-005
+Description:: Implement `discoverSkills()` function. Check if SKILL.md exists at root (single-skill mode) or scan subdirectories (multi-skill mode). Return array of `DiscoveredSkill`.
+
+=== Task 1.3: Unit tests for discovery [P]
+File:: `src/discovery.test.ts`
+Scenarios:: @SS-004, @SS-005
+Description:: Test single-skill detection, multi-skill scanning, skipping non-skill directories, and empty directory handling. Use temp directories with fixture SKILL.md files.
+
+== Phase 2: Parser and Validation
+
+=== Task 2.1: Implement parser module
+File:: `src/parser.ts`
+Scenarios:: @SS-001, @SS-006, @SS-007, @SS-008
+Description:: Implement `parseSkill()` function. Use `gray-matter` to extract frontmatter and body. Enumerate all files in skill directory. Validate frontmatter fields per Agent Skills spec.
+
+=== Task 2.2: Unit tests for parser [P]
+File:: `src/parser.test.ts`
+Scenarios:: @SS-001, @SS-006, @SS-007, @SS-008
+Description:: Test frontmatter extraction, body isolation, file enumeration, file categorization, and all validation scenarios (valid, missing fields, name format warnings).
+
+== Phase 3: Analyzer (Token Counting)
+
+=== Task 3.1: Implement analyzer module
+File:: `src/analyzer.ts`
+Scenarios:: @SS-001, @SS-002, @SS-003, @SS-009
+Description:: Implement `analyzeSkill()` function. Initialize tiktoken cl100k_base. Calculate Tier 1, 2, 3 token counts. Compute min/max tokens. Classify context budget rating.
+
+=== Task 3.2: Unit tests for analyzer [P]
+File:: `src/analyzer.test.ts`
+Scenarios:: @SS-001, @SS-002, @SS-003, @SS-009
+Description:: Test token counting for each tier, min/max calculation, rating thresholds at boundaries (999, 1000, 4999, 5000, 19999, 20000).
+
+== Phase 4: Output Formatting
+
+=== Task 4.1: Implement output module [P]
+File:: `src/output.ts`
+Scenarios:: @SS-010, @SS-011, @SS-012, @SS-013
+Description:: Implement `generateBadgeJson()`, `generateMarkdownSummary()`, and `formatTokenCount()`. Badge JSON follows Shields.io endpoint schema. Markdown summary includes tier breakdown, file inventory, and validation results.
+
+=== Task 4.2: Unit tests for output [P]
+File:: `src/output.test.ts`
+Scenarios:: @SS-010, @SS-011, @SS-012, @SS-013
+Description:: Test badge JSON structure, token count formatting (raw for <1000, "k" suffix for >=1000), markdown summary table for single and multiple skills.
+
+== Phase 5: GitHub Action Integration
+
+=== Task 5.1: Create action.yml
+File:: `action.yml`
+Scenarios:: @SS-014, @SS-015, @SS-016
+Description:: Define action metadata: inputs (`path`, `badge-output-dir`), outputs (`stats_json`, `min_tokens`, `max_tokens`, `rating`, `badge_json`), runs (node20, dist/index.js).
+
+=== Task 5.2: Implement main entry point
+File:: `src/main.ts`
+Scenarios:: @SS-014, @SS-015, @SS-016
+Description:: Orchestrate the pipeline: read inputs -> discover -> parse -> analyze -> output. Write badge JSON files, job summary, and action outputs.
+
+=== Task 5.3: Bundle with ncc
+Scenarios:: All
+Description:: Run `ncc build` to produce `dist/index.js`. Verify the bundle runs correctly.
+
+== Phase 6: Vitest Configuration and Integration Tests
+
+=== Task 6.1: Configure vitest
+File:: `vitest.config.ts`
+Description:: Set up vitest for the project. Configure test file patterns, coverage reporting.
+
+=== Task 6.2: Integration test with real skill fixtures [P]
+File:: `src/integration.test.ts`
+Scenarios:: All
+Description:: Create test fixtures mimicking real Agent Skills (with SKILL.md, references, scripts). Run the full pipeline end-to-end and verify outputs.
+
+== Phase 7: Local CLI
+
+=== Task 7.1: Implement CLI entry point [x]
+File:: `scripts/generate-badges.ts`
+Scenarios:: @SS-017, @SS-020, @SS-021
+Description:: Create a standalone CLI script that reuses Discovery, Parser, Analyzer, and Output modules. Parse `process.argv` for positional path argument (default `.opencode/skills`). Print per-skill summary lines and full markdown summary to stdout. Exit 0 on success.
+
+=== Task 7.2: Implement badge generation flag [x]
+File:: `scripts/generate-badges.ts`
+Scenarios:: @SS-018
+Description:: Parse `--badges <dir>` flag from argv. Create directory if missing. Write `<skill-name>-badge.json` files via `generateBadgeJson()`. Print confirmation of badge output directory.
+
+=== Task 7.3: Implement error handling [x]
+File:: `scripts/generate-badges.ts`
+Scenarios:: @SS-019, @SS-022
+Description:: Validate path exists via `fs.existsSync()` before discovery, exit 1 with error if not. Check `discoverSkills()` returns non-empty array, exit 1 with descriptive error if empty.
+
+=== Task 7.4: Add npm script alias [x]
+File:: `package.json`
+Scenarios:: @SS-017
+Description:: Add `"analyze": "tsx scripts/generate-badges.ts"` script to `package.json` so users can run `npm run analyze -- [path] [--badges <dir>]`.
+
+== Legend
+
+* `[P]` = Can run in parallel with other `[P]` tasks in the same phase
+* Tasks without `[P]` must complete before the next task starts
+* `[x]` = Task already completed

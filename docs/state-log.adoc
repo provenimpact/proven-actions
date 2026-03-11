@@ -1,0 +1,28 @@
+= State Transition Log
+:last-updated: 2026-03-11
+
+== TRANSITION-002
+:date: 2026-03-11
+:intent: Local CLI for running skill-stats without GitHub Actions, with documentation trail catch-up
+:type: Feature evolution
+:risk: Medium
+:features: skill-stats (extended)
+:desired-state: skill-stats can be run locally via CLI (npm run analyze), and all workflow artifacts (feature file, design, tasks) document the CLI capability
+:prior-state: CLI implementation existed (scripts/generate-badges.ts) but was added outside the proven-needs workflow — local-cli.feature had duplicate spec IDs, design.adoc lacked CLI section, tasks.adoc lacked CLI phase, no state-log entry
+:capabilities-invoked: needs-design (sync), needs-tasks (update)
+:constraints-checked: Licensing (pass)
+:result: Achieved
+:artifacts-modified: docs/features/skill-stats/local-cli.feature (fixed duplicate @SS-017/@SS-019 tags → @SS-020/@SS-021/@SS-022), docs/features/skill-stats/design.adoc (v1.1.0 — added CLI Entry Point section, updated pipeline diagram, added Local CLI scenario resolution), docs/features/skill-stats/tasks.adoc (v1.1.0 — added Phase 7 with pre-completed CLI tasks), docs/state-log.adoc
+
+== TRANSITION-001
+:date: 2026-03-11
+:intent: A GitHub Action that analyzes Agent Skills directories and produces token cost statistics with badge generation
+:type: Feature evolution
+:risk: High
+:features: skill-stats (new)
+:desired-state: skill-stats GitHub Action exists, analyzes Agent Skills, calculates token costs via tiktoken cl100k_base, validates metadata, produces progressive disclosure breakdown, generates Shields.io badge JSON, outputs markdown summary with context budget ratings
+:prior-state: Empty greenfield project with no source code, no configuration, no GitHub Actions
+:capabilities-invoked: needs-adr, needs-features, needs-design, needs-tasks, needs-implementation, needs-architecture
+:constraints-checked: None (no constraints defined for greenfield project)
+:result: Achieved
+:artifacts-modified: AGENTS.md, action.yml, package.json, tsconfig.json, .gitignore, vitest.config.ts, src/types.ts, src/discovery.ts, src/parser.ts, src/analyzer.ts, src/output.ts, src/main.ts, src/discovery.test.ts, src/parser.test.ts, src/analyzer.test.ts, src/output.test.ts, src/integration.test.ts, dist/index.js, docs/adrs/index.adoc, docs/adrs/0001-use-typescript-node-for-github-action.adoc, docs/adrs/0002-use-tiktoken-cl100k-base-tokenizer.adoc, docs/adrs/0003-use-shields-io-json-endpoint-for-badges.adoc, docs/features/skill-stats/*.feature, docs/features/skill-stats/design.adoc, docs/features/skill-stats/tasks.adoc, docs/architecture.adoc

@@ -1,0 +1,28 @@
+= ADR-0002: Use tiktoken cl100k_base as the Token Counting Standard
+:status: Accepted
+:date: 2026-03-11
+:deciders: User, AI assistant
+
+== Context
+
+The primary function of skill-stats is calculating how many tokens an Agent Skill consumes from an LLM's context window. Different LLM providers use different tokenizers. We need a standard tokenizer to produce consistent, comparable measurements.
+
+== Decision
+
+Use OpenAI's `tiktoken` library with the `cl100k_base` encoding as the default tokenizer. This is the encoding used by GPT-4 and serves as a reasonable approximation for Claude-class models.
+
+== Consequences
+
+* Token counts are accurate for GPT-4-class models and a close approximation for other major LLMs.
+* The `tiktoken` npm package is well-maintained and widely used.
+* Provides deterministic, reproducible counts (unlike character-based heuristics).
+* Token counts may differ slightly from actual consumption on non-OpenAI models, but the variance is typically within 5-10%.
+* Adding support for additional tokenizers (o200k_base, etc.) is straightforward in the future.
+
+== Alternatives Considered
+
+=== Multiple tokenizers with user selection
+Supporting cl100k_base, o200k_base, and model-specific encodings would be more accurate but adds complexity. We can extend to this later without breaking changes.
+
+=== Simple heuristic (chars/4)
+No dependency needed and fast, but produces rough approximations (often 15-25% off). Not suitable for a tool whose primary purpose is accurate token measurement.

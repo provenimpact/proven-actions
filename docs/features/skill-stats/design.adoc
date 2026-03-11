@@ -1,0 +1,430 @@
+= Design: Skill Stats
+:version: 1.1.0
+:status: Current
+:last-updated: 2026-03-11
+:feature: skill-stats
+:toc:
+
+== Technical Context
+
+Greenfield TypeScript/Node.js GitHub Action project. No existing code. The action analyzes Agent Skills directories -- a standard format defined at https://agentskills.io -- and produces token cost statistics, metadata validation, and badge output.
+
+Agent Skills follow a progressive disclosure model with three tiers of context loading:
+
+* **Tier 1 (Catalog):** ~50-100 tokens. Only `name` and `description` from YAML frontmatter.
+* **Tier 2 (Instructions):** <5000 tokens recommended. Full SKILL.md body (markdown after frontmatter).
+* **Tier 3 (Resources):** Varies. Files in `scripts/`, `references/`, `assets/`, etc.
+
+== Decisions and Constraints
+
+* <<../../adrs/0001-use-typescript-node-for-github-action.adoc#,ADR-0001>>: TypeScript/Node.js runtime with `@vercel/ncc` bundling
+* <<../../adrs/0002-use-tiktoken-cl100k-base-tokenizer.adoc#,ADR-0002>>: tiktoken cl100k_base tokenizer for token counting
+* <<../../adrs/0003-use-shields-io-json-endpoint-for-badges.adoc#,ADR-0003>>: Shields.io JSON endpoint format for badges
+
+== System Design
+
+The action is structured as a pipeline of four modules connected by a shared data model.
+
+[source,mermaid]
+----
+flowchart LR
+    GHA["GitHub Action\n(src/main.ts)"] --> DISC["Discovery\nModule"]
+    CLI["Local CLI\n(scripts/generate-badges.ts)"] --> DISC
+    DISC --> PARSE["Parser\nModule"]
+    PARSE --> ANALYZE["Analyzer\nModule"]
+    ANALYZE --> OUTPUT["Output\nModule"]
+
+    subgraph outputs ["Outputs"]
+        OUTPUT --> BADGE["Badge JSON\nFiles"]
+        OUTPUT --> SUMMARY["Markdown\nSummary"]
+        OUTPUT --> PARAMS["Action\nOutputs"]
+    end
+----
+
+=== Module: Discovery (`src/discovery.ts`)
+
+Responsibility:: Find skill directories at a given path. Supports two modes:
+* **Single-skill mode:** Path contains a `SKILL.md` at the root -> return that single directory.
+* **Multi-skill mode:** Path does NOT contain a `SKILL.md` at the root -> scan immediate subdirectories for `SKILL.md` files.
+
+Interface::
+[source,typescript]
+----
+interface DiscoveredSkill {
+  name: string;           // directory name
+  skillDir: string;       // absolute path to skill directory
+  skillMdPath: string;    // absolute path to SKILL.md
+}
+
+function discoverSkills(inputPath: string): Promise<DiscoveredSkill[]>;
+----
+
+Behavior::
+* Check if `SKILL.md` exists at `inputPath/SKILL.md` -> single-skill mode.
+* Otherwise, read immediate children of `inputPath`, check each for `SKILL.md` -> multi-skill mode.
+* Skip non-directory entries (files like `README.md`).
+* Return empty array if no skills found (caller handles error reporting).
+
+=== Module: Parser (`src/parser.ts`)
+
+Responsibility:: Parse a SKILL.md file into structured data: frontmatter fields and markdown body. Also enumerate all files in the skill directory.
+
+Interface::
+[source,typescript]
+----
+interface SkillMetadata {
+  name?: string;
+  description?: string;
+  license?: string;
+  compatibility?: string;
+  metadata?: Record<string, string>;
+  allowedTools?: string;
+}
+
+interface ParsedSkill {
+  metadata: SkillMetadata;
+  body: string;              // markdown content after frontmatter
+  rawContent: string;        // full SKILL.md content
+  files: SkillFile[];        // all files in the skill directory
+  validationIssues: ValidationIssue[];
+}
+
+interface SkillFile {
+  relativePath: string;      // relative to skill dir (e.g., "references/REFERENCE.md")
+  absolutePath: string;
+  sizeBytes: number;
+  content: string;           // file content (text files only)
+  category: "skill-md" | "script" | "reference" | "asset" | "other";
+}
+
+interface ValidationIssue {
+  field: string;
+  severity: "error" | "warning";
+  message: string;
+}
+
+function parseSkill(discovered: DiscoveredSkill): Promise<ParsedSkill>;
+----
+
+Behavior::
+* Use `gray-matter` to split YAML frontmatter from markdown body.
+* Validate frontmatter against the Agent Skills specification:
+** `name` present and valid (lowercase, 1-64 chars, no consecutive hyphens, matches directory name).
+** `description` present and non-empty (1-1024 chars).
+** Name format warnings (uppercase, length, hyphens) are `warning` severity.
+** Missing `name` or `description` are `error` severity.
+** Missing frontmatter entirely is `error` severity.
+* Recursively enumerate all files in the skill directory.
+* Categorize files by their parent directory (`scripts/` -> `script`, `references/` -> `reference`, `assets/` -> `asset`, `SKILL.md` -> `skill-md`, others -> `other`).
+* Read file contents for text files (skip binary files based on extension).
+
+=== Module: Analyzer (`src/analyzer.ts`)
+
+Responsibility:: Calculate token counts for each tier of progressive disclosure and assign context budget ratings.
+
+Interface::
+[source,typescript]
+----
+interface TierBreakdown {
+  tier1: {
+    tokens: number;           // name + description tokens
+    description: string;      // "Catalog entry (name + description)"
+  };
+  tier2: {
+    tokens: number;           // SKILL.md body tokens
+    description: string;      // "Full SKILL.md instructions"
+  };
+  tier3: FileTokenCount[];    // per-resource-file tokens
+}
+
+interface FileTokenCount {
+  relativePath: string;
+  tokens: number;
+  category: string;
+}
+
+type ContextRating = "lightweight" | "moderate" | "heavy" | "very heavy";
+
+interface SkillAnalysis {
+  skillName: string;
+  skillDir: string;
+  metadata: SkillMetadata;
+  validation: ValidationIssue[];
+  tiers: TierBreakdown;
+  minTokens: number;          // tier2 only (SKILL.md body)
+  maxTokens: number;          // tier2 + all tier3 files
+  totalFiles: number;
+  totalBytes: number;
+  rating: ContextRating;
+  badgeColor: string;
+}
+
+function analyzeSkill(parsed: ParsedSkill): SkillAnalysis;
+----
+
+Behavior::
+* Initialize tiktoken with `cl100k_base` encoding.
+* **Tier 1:** Tokenize the concatenation of `name` and `description` fields.
+* **Tier 2:** Tokenize the SKILL.md body (markdown after frontmatter). This is the `minTokens`.
+* **Tier 3:** For each resource file, tokenize its content individually.
+* **maxTokens** = Tier 2 tokens + sum of all Tier 3 tokens.
+* **Rating** based on `maxTokens`:
+** < 1,000 -> `lightweight` / `brightgreen`
+** 1,000 - 4,999 -> `moderate` / `yellow`
+** 5,000 - 19,999 -> `heavy` / `orange`
+** >= 20,000 -> `very heavy` / `red`
+
+Token counting sequence:
+
+[source,mermaid]
+----
+sequenceDiagram
+    participant A as Analyzer
+    participant T as Tiktoken
+    participant P as ParsedSkill
+
+    A->>P: Get metadata (name, description)
+    A->>T: Encode name + description
+    T-->>A: Tier 1 token count
+
+    A->>P: Get body (markdown after frontmatter)
+    A->>T: Encode body
+    T-->>A: Tier 2 token count (= minTokens)
+
+    loop Each resource file
+        A->>P: Get file content
+        A->>T: Encode content
+        T-->>A: File token count
+    end
+
+    A->>A: maxTokens = tier2 + sum(tier3)
+    A->>A: Classify rating from maxTokens
+----
+
+=== Module: Output (`src/output.ts`)
+
+Responsibility:: Format analysis results into badge JSON, markdown summary, and GitHub Actions outputs.
+
+Interface::
+[source,typescript]
+----
+interface BadgeJson {
+  schemaVersion: 1;
+  label: string;
+  message: string;
+  color: string;
+}
+
+function generateBadgeJson(analysis: SkillAnalysis): BadgeJson;
+function generateMarkdownSummary(analyses: SkillAnalysis[]): string;
+function formatTokenCount(tokens: number): string;  // e.g., 3500 -> "3.5k"
+----
+
+==== Badge JSON format
+
+[source,json]
+----
+{
+  "schemaVersion": 1,
+  "label": "skill tokens",
+  "message": "3.5k (moderate)",
+  "color": "yellow"
+}
+----
+
+Badge file naming: `<skill-name>-badge.json`.
+
+Token count formatting:
+* < 1,000: raw number (e.g., `"750"`)
+* >= 1,000: divided by 1000 with one decimal (e.g., `"3.5k"`, `"15.2k"`)
+
+==== Markdown summary format
+
+For a single skill:
+
+[source,markdown]
+----
+## Skill Stats: code-review
+
+| Metric | Value |
+|--------|-------|
+| Tier 1 (Catalog) | 85 tokens |
+| Tier 2 (SKILL.md body) | 2,400 tokens |
+| Tier 3 (Resources) | 1,100 tokens |
+| **Min (SKILL.md only)** | **2,400 tokens** |
+| **Max (All files)** | **3,500 tokens** |
+| **Rating** | **moderate** |
+
+### File Inventory
+
+| File | Tokens | Category |
+|------|--------|----------|
+| SKILL.md (body) | 2,400 | instructions |
+| references/REFERENCE.md | 800 | reference |
+| scripts/extract.py | 300 | script |
+
+### Validation
+
+✓ All checks passed
+----
+
+For multiple skills:
+
+[source,markdown]
+----
+## Skill Stats Summary
+
+| Skill | Min Tokens | Max Tokens | Rating | Files |
+|-------|-----------|-----------|--------|-------|
+| code-review | 2,400 | 3,500 | moderate | 4 |
+| pdf-processing | 800 | 1,200 | moderate | 3 |
+| **Total** | **3,200** | **4,700** | | **7** |
+
+(Detailed breakdown per skill follows)
+----
+
+=== CLI Entry Point (`scripts/generate-badges.ts`)
+
+Responsibility:: Provide a local command-line interface to run skill-stats without GitHub Actions. Reuses the same pipeline modules (Discovery, Parser, Analyzer, Output) but reads arguments from `process.argv` instead of `@actions/core` inputs and writes to stdout instead of GitHub Actions summary.
+
+Interface::
+[source,typescript]
+----
+// No exported API — this is a standalone script run via:
+//   npx tsx scripts/generate-badges.ts [path] [--badges <dir>]
+//   npm run analyze -- [path] [--badges <dir>]
+----
+
+Behavior::
+* Parse CLI arguments: positional `path` (default: `.opencode/skills`) and optional `--badges <dir>`.
+* Validate the resolved path exists, exit with code 1 and error message if not.
+* Call `discoverSkills()` on the resolved path.
+* If no skills found, print error message and exit with code 1.
+* For each discovered skill, run `parseSkill()` → `analyzeSkill()`. Print a per-skill summary line to stdout.
+* If `--badges` is provided, write badge JSON files to the specified directory (creating it if needed), then confirm where badges were written.
+* Print the full markdown summary to stdout.
+* Call `freeEncoder()` to release tiktoken resources.
+* Exit with code 0 on success, non-zero on any error.
+
+CLI flow:
+
+[source,mermaid]
+----
+flowchart TD
+    START["Parse argv"] --> RESOLVE["Resolve path"]
+    RESOLVE --> EXISTS{Path exists?}
+    EXISTS -->|No| ERR1["Print error, exit 1"]
+    EXISTS -->|Yes| DISC["discoverSkills(path)"]
+    DISC --> FOUND{Skills found?}
+    FOUND -->|No| ERR2["Print 'no skills found', exit 1"]
+    FOUND -->|Yes| LOOP["For each skill"]
+    LOOP --> PARSE["parseSkill(skill)"]
+    PARSE --> ANALYZE["analyzeSkill(parsed)"]
+    ANALYZE --> LINE["Print per-skill summary line"]
+    LINE --> BADGE{--badges flag?}
+    BADGE -->|Yes| WRITE["Write badge JSON file"]
+    BADGE -->|No| NEXT["Next skill"]
+    WRITE --> NEXT
+    NEXT --> LOOP
+    NEXT -->|All done| FREE["freeEncoder()"]
+    FREE --> SUMMARY["Print markdown summary"]
+    SUMMARY --> CONFIRM{Badges written?}
+    CONFIRM -->|Yes| MSG["Print badge dir path"]
+    CONFIRM -->|No| EXIT["Exit 0"]
+    MSG --> EXIT
+----
+
+=== Entry Point: Main (`src/main.ts`)
+
+Responsibility:: GitHub Action entry point. Reads inputs, orchestrates the pipeline, writes outputs.
+
+[source,mermaid]
+----
+flowchart TD
+    START["Read action inputs"] --> DISC["discoverSkills(path)"]
+    DISC --> CHECK{Skills found?}
+    CHECK -->|No| FAIL["setFailed('No skills found')"]
+    CHECK -->|Yes| LOOP["For each skill"]
+    LOOP --> PARSE["parseSkill(skill)"]
+    PARSE --> ANALYZE["analyzeSkill(parsed)"]
+    ANALYZE --> COLLECT["Collect results"]
+    COLLECT --> LOOP
+    COLLECT -->|All done| OUTPUT["Generate outputs"]
+    OUTPUT --> BADGE["Write badge JSON files"]
+    OUTPUT --> SUMMARY["Write job summary"]
+    OUTPUT --> PARAMS["Set action outputs"]
+----
+
+== Scenario Resolution
+
+=== Feature: Token Cost Calculation (token-counting.feature)
+
+Components:: Parser (frontmatter extraction, body isolation), Analyzer (tiktoken encoding, tier breakdown)
+Scenarios::
+* @SS-001: Calculate minimum token cost -> Analyzer computes Tier 2 tokens from parsed body. When only SKILL.md exists, min == max.
+* @SS-001: Minimum excludes YAML frontmatter -> Parser uses gray-matter to separate frontmatter from body; Analyzer only tokenizes the body.
+* @SS-002: Calculate maximum including all resources -> Analyzer sums Tier 2 + all Tier 3 file token counts.
+* @SS-003: Progressive disclosure tier breakdown -> Analyzer returns TierBreakdown with Tier 1, 2, and 3 as separate fields.
+* @SS-003: Tier 1 counts name + description only -> Analyzer tokenizes concatenated name and description fields from metadata.
+
+=== Feature: Skill Directory Discovery (skill-discovery.feature)
+
+Components:: Discovery (path scanning, mode detection)
+Scenarios::
+* @SS-004: Single skill directory -> Discovery checks for SKILL.md at root, returns single-skill mode result.
+* @SS-004: Fail gracefully when no skills found -> Discovery returns empty array; Main calls `core.setFailed()`.
+* @SS-005: Multiple skills in parent directory -> Discovery scans subdirectories for SKILL.md files.
+* @SS-005: Skip subdirectories without SKILL.md -> Discovery only returns entries where SKILL.md exists.
+
+=== Feature: Skill Metadata Validation (metadata-validation.feature)
+
+Components:: Parser (frontmatter validation)
+Scenarios::
+* @SS-006: Valid required fields -> Parser returns no validation issues with severity "error".
+* @SS-006: Valid with optional fields -> Parser accepts and preserves optional fields.
+* @SS-007: Missing name/description -> Parser returns error-severity issue for missing required field.
+* @SS-007: Missing frontmatter -> Parser returns error-severity issue.
+* @SS-008: Name warnings -> Parser returns warning-severity issues for name mismatches, uppercase, length, hyphens.
+
+=== Feature: Context Budget Rating (context-budget-rating.feature)
+
+Components:: Analyzer (rating classification)
+Scenarios::
+* @SS-009: Classify by token count -> Analyzer applies threshold-based classification (lightweight/moderate/heavy/very heavy) and assigns badge color.
+
+=== Feature: Badge JSON Generation (badge-generation.feature)
+
+Components:: Output (badge JSON formatter)
+Scenarios::
+* @SS-010: Single skill badge -> Output generates Shields.io JSON with schemaVersion, label, message, color.
+* @SS-010: Large/small token formatting -> Output `formatTokenCount()` uses "k" suffix for >= 1000.
+* @SS-011: Multiple skill badges -> Output generates one JSON file per skill named `<name>-badge.json`.
+
+=== Feature: Markdown Summary Output (markdown-summary.feature)
+
+Components:: Output (markdown formatter)
+Scenarios::
+* @SS-012: Single skill summary -> Output generates table with all metric values and file inventory.
+* @SS-012: File inventory grouped by directory -> Output groups files by category.
+* @SS-013: Multiple skills summary -> Output generates summary table with per-skill rows and totals.
+
+=== Feature: GitHub Action Interface (github-action-interface.feature)
+
+Components:: Main entry point, action.yml
+Scenarios::
+* @SS-014: Path input -> Main reads `path` input via `core.getInput()`.
+* @SS-014: Default path -> Main defaults to `"."` when no path specified.
+* @SS-014: Badge output dir -> Main reads `badge-output-dir` input; Output writes files there.
+* @SS-015: Action outputs -> Main sets `stats_json`, `min_tokens`, `max_tokens`, `rating`, `badge_json` via `core.setOutput()`.
+* @SS-016: Job summary -> Main writes markdown to `core.summary`.
+
+=== Feature: Local CLI (local-cli.feature)
+
+Components:: CLI Entry Point (`scripts/generate-badges.ts`), Discovery, Parser, Analyzer, Output
+Scenarios::
+* @SS-017: Analyze a skill directory via CLI -> CLI parses positional path arg, calls the same pipeline (discover → parse → analyze → output), prints markdown summary to stdout, exits 0.
+* @SS-020: Analyze a parent directory of skills via CLI -> CLI passes the path to `discoverSkills()` which auto-detects multi-skill mode; CLI prints a per-skill summary line for each discovered skill.
+* @SS-018: Generate badge files via CLI -> CLI reads `--badges <dir>` flag, creates the directory if needed, calls `generateBadgeJson()` for each skill, writes JSON files, prints confirmation of badge directory.
+* @SS-019: CLI reports error for nonexistent path -> CLI checks `fs.existsSync()` before discovery; prints error message and calls `process.exit(1)` if path doesn't exist.
+* @SS-022: CLI reports error when no skills found -> CLI checks `discoverSkills()` result length; prints descriptive error and calls `process.exit(1)` if empty array returned.
+* @SS-021: CLI defaults to .opencode/skills when no path given -> CLI `parseArgs()` defaults `skillsPath` to `".opencode/skills"` when no positional argument provided.

@@ -1,0 +1,36 @@
+= ADR-0001: Use TypeScript/Node.js (ESM) for GitHub Action Runtime
+:status: Accepted
+:date: 2026-03-11
+:deciders: User, AI assistant
+
+== Context
+
+We are building a GitHub Action (`skill-stats`) that analyzes Agent Skills directories and produces token cost statistics. GitHub Actions supports three types of actions: JavaScript/TypeScript (Node.js), Docker-based, and composite (shell scripts). We need to choose the runtime that best balances development speed, runtime performance, and ecosystem support.
+
+The official `actions/typescript-action` template has moved to ESM (ECMAScript Modules) with `@actions/core` v3.0.0, which is ESM-only. The template uses Rollup for bundling instead of the legacy `@vercel/ncc` (which only outputs CJS).
+
+== Decision
+
+Use TypeScript compiled to ESM JavaScript running on Node.js 20. The project uses `"type": "module"` in `package.json` and `"module": "NodeNext"` in `tsconfig.json`, matching the official GitHub Actions TypeScript template. The action is bundled with Rollup (using `@rollup/plugin-typescript`, `@rollup/plugin-node-resolve`, and `@rollup/plugin-commonjs`) into a single `dist/index.js` ESM bundle for zero-install execution in GitHub Actions runners.
+
+== Consequences
+
+* Fast cold start in CI (no Docker pull, no container boot).
+* Native ESM integration with `@actions/core` v3.0.0 and `@actions/glob` packages.
+* TypeScript with `NodeNext` module resolution provides type safety and correct ESM semantics.
+* Rollup bundles all dependencies into a single ESM file, eliminating the need for `node_modules` in the repository.
+* The `tiktoken` npm package provides cl100k_base tokenizer support.
+* All relative imports require `.js` extensions per ESM convention.
+* Aligns with the official `actions/typescript-action` template, ensuring compatibility with future GitHub Actions toolkit updates.
+* Limits the action to Node.js-compatible libraries only.
+
+== Alternatives Considered
+
+=== CJS with @vercel/ncc
+The legacy approach. `@vercel/ncc` bundles to CJS, but `@actions/core` v3.0.0 is ESM-only and cannot be resolved by `ncc`. Using `@actions/core` v1.x (CJS) would work with `ncc` but means staying on a legacy, unmaintained version of the Actions toolkit.
+
+=== Docker-based (Python)
+Python has mature tokenizer libraries (`tiktoken` via PyPI), but Docker actions have slower cold starts in CI. The additional startup latency is not justified for a lightweight analysis tool.
+
+=== Composite (shell scripts)
+Simplest approach but severely limited -- no built-in tokenizer support, would require external tools or crude heuristics for token counting.

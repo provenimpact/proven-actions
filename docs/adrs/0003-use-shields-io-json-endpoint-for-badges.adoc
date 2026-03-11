@@ -1,0 +1,31 @@
+= ADR-0003: Use Shields.io JSON Endpoint Format for Badge Generation
+:status: Accepted
+:date: 2026-03-11
+:deciders: User, AI assistant
+
+== Context
+
+skill-stats needs to produce badge-compatible output so that repositories containing Agent Skills can display token cost metrics as GitHub badges. Shields.io is the de facto standard for GitHub badges and supports multiple data source formats.
+
+== Decision
+
+Generate Shields.io-compatible JSON endpoint files. Each skill produces a JSON file with `schemaVersion`, `label`, `message`, and `color` fields. These files can be served via GitHub Pages, committed to the repository, or hosted on any static file server.
+
+Badge colors are determined by a context budget rating system:
+- Lightweight (< 1,000 tokens): `brightgreen`
+- Moderate (1,000 - 5,000 tokens): `yellow`
+- Heavy (5,000 - 20,000 tokens): `orange`
+- Very Heavy (> 20,000 tokens): `red`
+
+== Consequences
+
+* Standard format recognized by the entire GitHub ecosystem.
+* JSON endpoint files are simple to generate, host, and cache.
+* Badge URLs follow the pattern: `https://img.shields.io/endpoint?url=<json-url>`.
+* Users need to host the JSON files somewhere accessible (GitHub Pages, raw.githubusercontent.com, or a CDN).
+* The action can also commit badge JSON files directly to the repository for use with raw GitHub URLs.
+
+== Alternatives Considered
+
+=== GitHub Actions output parameters only
+Setting outputs like `min_tokens` and `max_tokens` that downstream steps use to construct badge URLs. This works but requires more user effort to wire up badge generation and doesn't produce a self-contained artifact.

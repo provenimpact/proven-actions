@@ -1,0 +1,7 @@
+= Project Constraints
+:version: 1.0.0
+:last-updated: 2026-03-11
+
+== Licensing
+
+* No copyleft-licensed dependencies are permitted (GPL, LGPL, AGPL, MPL, EUPL, or similar). Only permissive licenses are allowed (MIT, Apache-2.0, BSD, ISC, 0BSD, Unlicense).

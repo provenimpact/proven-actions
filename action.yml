@@ -1,0 +1,39 @@
+name: "Skill Stats"
+description: "Analyze Agent Skills and report token cost statistics with badge generation"
+author: "ProvenImpact"
+
+branding:
+  icon: "bar-chart-2"
+  color: "blue"
+
+inputs:
+  path:
+    description: >
+      Path to a skill directory (containing SKILL.md) or a parent directory
+      containing multiple skill subdirectories. Defaults to the current
+      working directory.
+    required: false
+    default: "."
+  badge-output-dir:
+    description: >
+      Directory to write Shields.io badge JSON files. If not specified,
+      badge files are not written to disk (they are still available via
+      the badge_json output).
+    required: false
+    default: ""
+
+outputs:
+  stats_json:
+    description: "Complete analysis data as a JSON string"
+  min_tokens:
+    description: "Minimum token count (SKILL.md body only)"
+  max_tokens:
+    description: "Maximum token count (all files)"
+  rating:
+    description: "Context budget rating (lightweight/moderate/heavy/very heavy)"
+  badge_json:
+    description: "Shields.io badge JSON string"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"

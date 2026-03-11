@@ -1,0 +1,42 @@
+name: Skill Stats
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".opencode/skills/**"
+      - "action.yml"
+      - "src/**"
+      - "dist/**"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    name: Analyze Agent Skills
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run skill-stats (dogfood)
+        uses: ./
+        id: stats
+        with:
+          path: .opencode/skills
+          badge-output-dir: ./badges
+
+      - name: Commit badge updates
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add badges/
+          git diff --staged --quiet && echo "No badge changes" && exit 0
+          git commit -m "chore: update skill stats badges"
+          git push

@@ -1,0 +1,9 @@
+node_modules/
+lib/
+.DS_Store
+*.log
+coverage/
+.vitest/
+
+# dist/ is NOT ignored -- it must be committed for GitHub Actions
+# (GitHub Actions runs dist/index.js directly from the repo)
