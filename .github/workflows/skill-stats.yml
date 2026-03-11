@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   analyze:
@@ -31,12 +31,38 @@ jobs:
           path: .opencode/skills
           badge-output-dir: ./badges
 
-      - name: Commit badge updates
+      - name: Publish badges to gist
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GIST_SECRET: ${{ secrets.GIST_SECRET }}
+          GIST_ID: ${{ vars.GIST_ID }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add badges/
-          git diff --staged --quiet && echo "No badge changes" && exit 0
-          git commit -m "chore: update skill stats badges"
-          git push
+          if [ -z "$GIST_SECRET" ] || [ -z "$GIST_ID" ]; then
+            echo "::warning::GIST_SECRET or GIST_ID not configured — skipping badge publish"
+            exit 0
+          fi
+
+          # Build JSON payload with all badge files
+          FILES_JSON="{"
+          first=true
+          for badge in badges/*-badge.json; do
+            [ -f "$badge" ] || continue
+            name="$(basename "$badge")"
+            content="$(jq -c '.' "$badge")"
+            if [ "$first" = true ]; then
+              first=false
+            else
+              FILES_JSON+=","
+            fi
+            FILES_JSON+="\"$name\":{\"content\":$(jq -Rs '.' <<< "$content")}"
+          done
+          FILES_JSON+="}"
+
+          # Update the gist via GitHub API
+          curl -sf -X PATCH \
+            -H "Authorization: token $GIST_SECRET" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/gists/$GIST_ID" \
+            -d "{\"files\":$FILES_JSON}" > /dev/null
+
+          echo "Badges published to gist $GIST_ID"

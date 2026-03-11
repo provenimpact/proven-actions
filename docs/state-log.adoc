@@ -1,6 +1,19 @@
 = State Transition Log
 :last-updated: 2026-03-11
 
+== TRANSITION-004
+:date: 2026-03-11
+:intent: Badge JSON files should not be committed to the repository — migrate to gist-based badge delivery
+:type: Feature evolution
+:risk: Medium
+:features: skill-stats (modified badge delivery)
+:desired-state: Badge JSON files are published to a GitHub Gist via CI and served via Shields.io endpoint badges. No badge files are committed to the repository. The workflow no longer needs contents:write permission for badge commits.
+:prior-state: Badge JSON files are committed directly to main by the skill-stats workflow (badges/*.json), causing noise commits and requiring contents:write permission
+:capabilities-invoked: needs-adr (ADR-0004), needs-features (update badge-generation.feature), needs-design (sync v1.2.0), needs-tasks (add Phase 8), needs-implementation (Phase 8 tasks), needs-architecture (update v1.1.0)
+:constraints-checked: Licensing (pass — no new dependencies)
+:result: Achieved
+:artifacts-modified: docs/adrs/0004-use-github-gist-for-badge-hosting.adoc, docs/adrs/index.adoc (v1.1.0), docs/features/skill-stats/badge-generation.feature (added @SS-023, @SS-024), docs/features/skill-stats/steps/badge-generation.steps.ts (new), docs/features/skill-stats/design.adoc (v1.2.0), docs/features/skill-stats/tasks.adoc (v1.2.0), .gitignore, badges/ (removed), .github/workflows/skill-stats.yml, README.md, docs/architecture.adoc (v1.1.0), scripts/setup-badges.sh (new), docs/state-log.adoc
+
 == TRANSITION-003
 :date: 2026-03-11
 :intent: Fix failing Skill Stats GitHub Action — replace tiktoken (WASM) with js-tiktoken (pure JS) to resolve __dirname ESM incompatibility

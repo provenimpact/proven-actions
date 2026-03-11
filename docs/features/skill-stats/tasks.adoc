@@ -1,6 +1,7 @@
 = Tasks: Skill Stats
-:version: 1.1.0
+:version: 1.2.0
 :status: Current
+:source-design-version: 1.2.0
 :last-updated: 2026-03-11
 :feature: skill-stats
 :toc:
@@ -106,6 +107,39 @@ Description:: Validate path exists via `fs.existsSync()` before discovery, exit 
 File:: `package.json`
 Scenarios:: @SS-017
 Description:: Add `"analyze": "tsx scripts/generate-badges.ts"` script to `package.json` so users can run `npm run analyze -- [path] [--badges <dir>]`.
+
+== Phase 8: Badge Delivery Migration (Gist-based)
+
+Migrate badge delivery from committing files to the repository to publishing via GitHub Gist (ADR-0004).
+
+=== Task 8.1: Update .gitignore to exclude badges/ [x]
+File:: `.gitignore`
+Scenarios:: @SS-024
+Description:: Add `badges/` to `.gitignore` to prevent badge JSON files from being committed to the repository, including from local CLI runs.
+
+=== Task 8.2: Remove committed badges/ directory [x]
+Scenarios:: @SS-024
+Description:: Delete the `badges/` directory from the repository. Use `git rm -r badges/` to remove tracked badge files.
+
+=== Task 8.3: Update workflow to publish badges to gist [x]
+File:: `.github/workflows/skill-stats.yml`
+Scenarios:: @SS-023
+Description:: Replace the "commit badges to main" step with a gist publishing step. Use a shell script that reads all `badges/*.json` files and PATCHes them to the GitHub Gists API. Authenticate with `GIST_SECRET` repo secret. Use `GIST_ID` variable for the gist identifier. Only run on pushes to main. Downgrade workflow permissions from `contents: write` to `contents: read`.
+
+=== Task 8.4: Update README badge URLs [x]
+File:: `README.md`
+Scenarios:: @SS-024
+Description:: Replace all badge URLs from `raw.githubusercontent.com/.../main/badges/<name>-badge.json` to `gist.githubusercontent.com/{user}/{gist_id}/raw/<name>-badge.json`. Update both the dogfood badge table and the usage documentation pattern.
+
+== Traceability (Phase 8)
+
+[cols="1,1,1", options="header"]
+|===
+| Feature (.feature file) | Scenario Tags | Tasks
+
+| Badge JSON Generation (badge-generation.feature) | @SS-023 | TASK-8.3
+| Badge JSON Generation (badge-generation.feature) | @SS-024 | TASK-8.1, TASK-8.2, TASK-8.4
+|===
 
 == Legend
 

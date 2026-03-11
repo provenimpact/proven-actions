@@ -1,5 +1,5 @@
 = Architecture Decision Records
-:version: 1.0.0
+:version: 1.1.0
 :last-updated: 2026-03-11
 :toc:
 
@@ -19,6 +19,11 @@
 
 | <<0003-use-shields-io-json-endpoint-for-badges.adoc#,ADR-0003>>
 | Use Shields.io JSON Endpoint Format for Badge Generation
+| Accepted
+| 2026-03-11
+
+| <<0004-use-github-gist-for-badge-hosting.adoc#,ADR-0004>>
+| Use GitHub Gist for Badge JSON Hosting
 | Accepted
 | 2026-03-11
 |===

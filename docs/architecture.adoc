@@ -1,7 +1,16 @@
 = System Architecture: skill-stats
-:version: 1.0.0
+:version: 1.1.0
 :last-updated: 2026-03-11
 :toc:
+
+== Feature Design Sources
+
+[cols="1,1", options="header"]
+|===
+| Feature | Design Version
+
+| skill-stats | 1.2.0
+|===
 
 == Overview
 
@@ -19,12 +28,14 @@ C4Context
     System_Ext(github, "GitHub Actions", "CI/CD pipeline runner")
     System_Ext(shields, "Shields.io", "Badge rendering service")
     System_Ext(repo, "Git Repository", "Contains Agent Skill directories")
+    System_Ext(gist, "GitHub Gists", "Hosts badge JSON files (ADR-0004)")
 
     Rel(author, github, "Triggers workflow")
     Rel(github, skillstats, "Executes action")
     Rel(skillstats, repo, "Reads skill files")
     Rel(skillstats, github, "Writes job summary, sets outputs")
-    Rel(shields, skillstats, "Reads badge JSON endpoints")
+    Rel(github, gist, "Publishes badge JSON via Gists API")
+    Rel(shields, gist, "Reads badge JSON endpoints")
     Rel(author, shields, "Embeds badge URLs in README")
 ----
 
@@ -72,11 +83,16 @@ flowchart LR
         OUTPUTS["Action outputs (stats_json, min/max tokens, rating)"]
     end
 
+    subgraph delivery ["CI Delivery"]
+        GIST["GitHub Gist\n(via Gists API)"]
+    end
+
     PATH --> DISC
     BADGE_DIR --> OUT
     OUT --> BADGE_JSON
     OUT --> JOB_SUMMARY
     OUT --> OUTPUTS
+    BADGE_JSON --> GIST
 ----
 
 == Module Responsibilities
@@ -129,6 +145,10 @@ flowchart LR
 | Badge format
 | Shields.io JSON endpoint
 | ADR-0003
+
+| Badge hosting
+| GitHub Gist
+| ADR-0004
 
 | Bundler
 | Rollup

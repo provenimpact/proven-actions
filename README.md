@@ -21,18 +21,22 @@ Agent Skills use [progressive disclosure](https://agentskills.io/client-implemen
 
 We run skill-stats on the skills in this repository. Here are the results:
 
+<!-- Badge URLs point to a GitHub Gist via Shields.io endpoint badges (ADR-0004).
+     To configure: create a gist, set GIST_ID repo variable and GIST_SECRET repo secret.
+     Then replace GIST_OWNER and GIST_ID below with your values. -->
+
 | Skill | Badge |
 |-------|-------|
-| proven-needs | ![proven-needs](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/proven-needs-badge.json) |
-| needs-features | ![needs-features](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-features-badge.json) |
-| needs-design | ![needs-design](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-design-badge.json) |
-| needs-implementation | ![needs-implementation](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-implementation-badge.json) |
-| needs-architecture | ![needs-architecture](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-architecture-badge.json) |
-| needs-tasks | ![needs-tasks](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-tasks-badge.json) |
-| needs-adr | ![needs-adr](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-adr-badge.json) |
-| needs-dependencies | ![needs-dependencies](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-dependencies-badge.json) |
-| needs-security | ![needs-security](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-security-badge.json) |
-| needs-compliance | ![needs-compliance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/provenimpact/proven-actions/main/badges/needs-compliance-badge.json) |
+| proven-needs | ![proven-needs](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/proven-needs-badge.json) |
+| needs-features | ![needs-features](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-features-badge.json) |
+| needs-design | ![needs-design](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-design-badge.json) |
+| needs-implementation | ![needs-implementation](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-implementation-badge.json) |
+| needs-architecture | ![needs-architecture](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-architecture-badge.json) |
+| needs-tasks | ![needs-tasks](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-tasks-badge.json) |
+| needs-adr | ![needs-adr](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-adr-badge.json) |
+| needs-dependencies | ![needs-dependencies](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-dependencies-badge.json) |
+| needs-security | ![needs-security](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-security-badge.json) |
+| needs-compliance | ![needs-compliance](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-compliance-badge.json) |
 
 ## Quick Start
 
@@ -98,7 +102,7 @@ jobs:
           echo "Rating: ${{ steps.stats.outputs.rating }}"
 ```
 
-### Analyze multiple skills and generate badges
+### Analyze multiple skills and publish badges to a gist
 
 ```yaml
 name: Skill Stats
@@ -107,7 +111,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   analyze:
@@ -120,20 +124,46 @@ jobs:
           path: .agents/skills
           badge-output-dir: ./badges
 
-      - name: Commit badge updates
+      - name: Publish badges to gist
+        if: github.ref == 'refs/heads/main'
+        env:
+          GIST_SECRET: ${{ secrets.GIST_SECRET }}
+          GIST_ID: ${{ vars.GIST_ID }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add badges/
-          git diff --staged --quiet && exit 0
-          git commit -m "chore: update skill stats badges"
-          git push
+          FILES_JSON="{"
+          first=true
+          for badge in badges/*-badge.json; do
+            [ -f "$badge" ] || continue
+            name="$(basename "$badge")"
+            content="$(jq -c '.' "$badge")"
+            [ "$first" = true ] && first=false || FILES_JSON+=","
+            FILES_JSON+="\"$name\":{\"content\":$(jq -Rs '.' <<< "$content")}"
+          done
+          FILES_JSON+="}"
+
+          curl -sf -X PATCH \
+            -H "Authorization: token $GIST_SECRET" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/gists/$GIST_ID" \
+            -d "{\"files\":$FILES_JSON}" > /dev/null
 ```
 
-Then add a badge to your README:
+**Setup** (one-time, using the included setup script):
+
+```bash
+# Auto-discover skills and create gist + repo secrets in one command
+./scripts/setup-badges.sh --path .agents/skills
+```
+
+Or manually:
+1. Create a public GitHub Gist with a `<skill-name>-badge.json` file per skill
+2. Create a PAT with `gist` scope and add it as the `GIST_SECRET` repository secret
+3. Add the gist ID as the `GIST_ID` repository variable
+
+The setup script prints ready-to-use badge markdown. Or construct URLs manually:
 
 ```markdown
-![Skill Tokens](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/main/badges/my-skill-badge.json)
+![Skill Tokens](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/my-skill-badge.json)
 ```
 
 ### Use outputs in downstream steps

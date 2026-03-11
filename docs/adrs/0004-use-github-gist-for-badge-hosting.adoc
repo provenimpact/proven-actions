@@ -1,0 +1,47 @@
+= ADR-0004: Use GitHub Gist for Badge JSON Hosting
+:status: Accepted
+:date: 2026-03-11
+:deciders: User, AI assistant
+
+== Context
+
+The skill-stats workflow generates Shields.io badge JSON files (ADR-0003) and commits them directly to the `main` branch (`badges/*.json`). This causes noise commits after every skill change, requires `contents: write` permission on the workflow, and risks push conflicts when commits land between checkout and badge push (GitHub issue #1).
+
+Badge data is a derived CI artifact, not source code. It should be produced by the pipeline and served without polluting the repository's commit history.
+
+== Decision
+
+Publish badge JSON files to a GitHub Gist via the GitHub Gists API during CI. The workflow updates the gist using a Personal Access Token (PAT) with `gist` scope, stored as the `GIST_SECRET` repository secret.
+
+Badge URLs use the Shields.io endpoint badge format (unchanged from ADR-0003) with the gist as the data source:
+
+----
+https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/{user}/{gist-id}/raw/{filename}
+----
+
+This follows the industry-standard pattern used by `schneegans/dynamic-badges-action` and similar tools for serving custom CI badge data.
+
+== Consequences
+
+* No badge-related commits to the repository. Commit history stays clean.
+* The workflow no longer needs `contents: write` permission for badge updates.
+* No push conflict risk between badge commits and developer commits.
+* Requires a one-time manual setup: create a GitHub Gist and a PAT with `gist` scope.
+* PAT must be rotated periodically; if it expires, badge updates silently stop (badges show stale data but do not break).
+* The `badges/` directory is removed from the repository and added to `.gitignore`.
+* Badge URLs in the README change from `raw.githubusercontent.com` to `gist.githubusercontent.com`.
+* The Shields.io JSON format (ADR-0003) remains unchanged — only the hosting location changes.
+
+== Alternatives Considered
+
+=== Keep committing badges to the repository
+Current approach. Simple, no extra credentials. But creates noise commits, requires `contents: write`, and risks push conflicts. Rejected because badge data is not source code.
+
+=== GitHub Pages deployment
+Deploy badge files to a `gh-pages` branch via `actions/deploy-pages`. Avoids commits to `main` and needs no PAT. Rejected because it requires enabling GitHub Pages on the repository, adds a deployment step, and is heavier than needed for a handful of small JSON files.
+
+=== External storage (Cloudflare R2 / S3)
+Upload badge JSON to an object store with a CDN. Fast and scalable. Rejected because it introduces an external dependency and requires cloud credentials — disproportionate for this use case.
+
+=== Remove badges entirely
+Drop Shields.io badges and rely only on action outputs and job summaries. Rejected because badges provide at-a-glance visibility in the README, which is valuable for skill authors evaluating token costs.

@@ -1,5 +1,5 @@
 = Design: Skill Stats
-:version: 1.1.0
+:version: 1.2.0
 :status: Current
 :last-updated: 2026-03-11
 :feature: skill-stats
@@ -20,6 +20,7 @@ Agent Skills follow a progressive disclosure model with three tiers of context l
 * <<../../adrs/0001-use-typescript-node-for-github-action.adoc#,ADR-0001>>: TypeScript/Node.js runtime with `@vercel/ncc` bundling
 * <<../../adrs/0002-use-tiktoken-cl100k-base-tokenizer.adoc#,ADR-0002>>: tiktoken cl100k_base tokenizer for token counting
 * <<../../adrs/0003-use-shields-io-json-endpoint-for-badges.adoc#,ADR-0003>>: Shields.io JSON endpoint format for badges
+* <<../../adrs/0004-use-github-gist-for-badge-hosting.adoc#,ADR-0004>>: GitHub Gist for badge JSON hosting
 
 == System Design
 
@@ -38,6 +39,10 @@ flowchart LR
         OUTPUT --> BADGE["Badge JSON\nFiles"]
         OUTPUT --> SUMMARY["Markdown\nSummary"]
         OUTPUT --> PARAMS["Action\nOutputs"]
+    end
+
+    subgraph delivery ["CI Delivery (workflow)"]
+        BADGE --> GIST["Publish to\nGitHub Gist"]
     end
 ----
 
@@ -283,6 +288,51 @@ For multiple skills:
 (Detailed breakdown per skill follows)
 ----
 
+=== Badge Delivery: Gist Publishing (`.github/workflows/skill-stats.yml`)
+
+Responsibility:: Publish badge JSON files to a GitHub Gist after the action generates them, replacing the previous approach of committing badge files directly to the repository (ADR-0004).
+
+The action itself (`src/main.ts`) continues to generate badge JSON and write files to the `badge-output-dir` path. The delivery mechanism is entirely within the CI workflow — the action is unaware of how badges are served.
+
+[source,mermaid]
+----
+sequenceDiagram
+    participant WF as Workflow
+    participant Action as skill-stats Action
+    participant FS as Filesystem
+    participant Gist as GitHub Gists API
+
+    WF->>Action: Run with badge-output-dir=./badges
+    Action->>FS: Write badge JSON files to ./badges/
+    Action-->>WF: Action completes
+
+    alt Push to main branch
+        WF->>FS: Read all ./badges/*.json files
+        WF->>Gist: PATCH /gists/{gist_id}<br/>with badge file contents
+        Gist-->>WF: 200 OK
+    else Pull request
+        Note over WF: Skip gist publishing<br/>(badges only in job summary)
+    end
+----
+
+Workflow design::
+* The gist publish step runs only on pushes to `main` (`if: github.ref == 'refs/heads/main' && github.event_name == 'push'`).
+* Uses a shell script that iterates over `badges/*.json` files and builds a JSON payload for the GitHub Gists API `PATCH /gists/{gist_id}` endpoint.
+* Authenticates with a PAT stored as the `GIST_SECRET` repository secret (requires `gist` scope).
+* The gist ID is stored as the `GIST_ID` repository variable or hardcoded in the workflow.
+* On pull requests, badge files are still generated (for the job summary output) but not published to the gist.
+
+Workflow permissions::
+* `contents: read` (no longer needs `write` — badge commits are eliminated).
+
+Badge URL pattern::
+* Old: `https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{owner}/{repo}/main/badges/{name}-badge.json`
+* New: `https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/{user}/{gist_id}/raw/{name}-badge.json`
+
+Repository cleanup::
+* The `badges/` directory is removed from the repository.
+* `badges/` is added to `.gitignore` to prevent accidental re-commits from local CLI runs.
+
 === CLI Entry Point (`scripts/generate-badges.ts`)
 
 Responsibility:: Provide a local command-line interface to run skill-stats without GitHub Actions. Reuses the same pipeline modules (Discovery, Parser, Analyzer, Output) but reads arguments from `process.argv` instead of `@actions/core` inputs and writes to stdout instead of GitHub Actions summary.
@@ -394,11 +444,15 @@ Scenarios::
 
 === Feature: Badge JSON Generation (badge-generation.feature)
 
-Components:: Output (badge JSON formatter)
+Components:: Output (badge JSON formatter), CI Workflow (gist publishing step), Repository configuration (.gitignore)
 Scenarios::
 * @SS-010: Single skill badge -> Output generates Shields.io JSON with schemaVersion, label, message, color.
 * @SS-010: Large/small token formatting -> Output `formatTokenCount()` uses "k" suffix for >= 1000.
 * @SS-011: Multiple skill badges -> Output generates one JSON file per skill named `<name>-badge.json`.
+* @SS-023: Badge JSON published to gist -> CI workflow reads generated badge files from `badges/` and PATCHes them to the GitHub Gist via the Gists API. Only runs on pushes to main. No badge files are committed to the repository.
+* @SS-023: Badge data not published on PRs -> CI workflow skips the gist publish step when the event is a pull request.
+* @SS-024: Badge files excluded from repo -> `badges/` is listed in `.gitignore`. The `badges/` directory is removed from the committed source tree.
+* @SS-024: README badges reference gist URL -> README badge URLs use the Shields.io endpoint format pointing to `gist.githubusercontent.com/{user}/{gist_id}/raw/{name}-badge.json`.
 
 === Feature: Markdown Summary Output (markdown-summary.feature)
 
