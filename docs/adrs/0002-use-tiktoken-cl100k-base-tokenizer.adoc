@@ -1,6 +1,7 @@
 = ADR-0002: Use tiktoken cl100k_base as the Token Counting Standard
 :status: Accepted
 :date: 2026-03-11
+:amended: 2026-03-11
 :deciders: User, AI assistant
 
 == Context
@@ -9,17 +10,24 @@ The primary function of skill-stats is calculating how many tokens an Agent Skil
 
 == Decision
 
-Use OpenAI's `tiktoken` library with the `cl100k_base` encoding as the default tokenizer. This is the encoding used by GPT-4 and serves as a reasonable approximation for Claude-class models.
+Use the `cl100k_base` encoding as the default tokenizer. This is the encoding used by GPT-4 and serves as a reasonable approximation for Claude-class models.
+
+The implementation uses the `js-tiktoken` package (pure JavaScript port of tiktoken). This was chosen over the original `tiktoken` package (which uses WASM) because the WASM-based package is incompatible with ESM bundling — it relies on `+__dirname+` to locate its `.wasm` file, which is not available in ES modules.
 
 == Consequences
 
 * Token counts are accurate for GPT-4-class models and a close approximation for other major LLMs.
-* The `tiktoken` npm package is well-maintained and widely used.
+* The `js-tiktoken` npm package is a pure JavaScript implementation — no WASM files to bundle or locate at runtime.
+* Works correctly in ESM bundles (GitHub Actions `node20` runtime with `"type": "module"`).
 * Provides deterministic, reproducible counts (unlike character-based heuristics).
 * Token counts may differ slightly from actual consumption on non-OpenAI models, but the variance is typically within 5-10%.
 * Adding support for additional tokenizers (o200k_base, etc.) is straightforward in the future.
+* No resource cleanup required (unlike the WASM-based tiktoken which required `.free()` calls).
 
 == Alternatives Considered
+
+=== tiktoken (WASM-based)
+The original `tiktoken` npm package uses a WASM binary (`tiktoken_bg.wasm`). Its CJS entry point uses `+__dirname+` to locate the WASM file, which is undefined in ES module scope. This caused the Skill Stats GitHub Action to fail at runtime with `ReferenceError: __dirname is not defined in ES module scope`. Shimming `+__dirname+` and bundling the WASM file adds build complexity that is unnecessary given the pure JS alternative.
 
 === Multiple tokenizers with user selection
 Supporting cl100k_base, o200k_base, and model-specific encodings would be more accurate but adds complexity. We can extend to this later without breaking changes.

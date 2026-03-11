@@ -1,5 +1,4 @@
-import { encoding_for_model } from "tiktoken";
-import type { Tiktoken } from "tiktoken";
+import { encodingForModel, type Tiktoken } from "js-tiktoken";
 import {
   ParsedSkill,
   SkillAnalysis,
@@ -29,7 +28,7 @@ let encoder: Tiktoken | null = null;
  */
 function getEncoder(): Tiktoken {
   if (!encoder) {
-    encoder = encoding_for_model("gpt-4");
+    encoder = encodingForModel("gpt-4");
   }
   return encoder;
 }
@@ -136,12 +135,11 @@ export function analyzeSkill(
 }
 
 /**
- * Free the tiktoken encoder resources.
+ * Release the tiktoken encoder reference.
  * Call this after all analysis is complete.
+ * (js-tiktoken is pure JS — no WASM resources to free, but we clear
+ * the singleton so it can be garbage-collected.)
  */
 export function freeEncoder(): void {
-  if (encoder) {
-    encoder.free();
-    encoder = null;
-  }
+  encoder = null;
 }

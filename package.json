@@ -26,7 +26,7 @@
     "@actions/core": "^3.0.0",
     "@actions/glob": "^0.6.1",
     "gray-matter": "^4.0.3",
-    "tiktoken": "^1.0.22",
+    "js-tiktoken": "^1.0.21",
     "yaml": "^2.8.2"
   },
   "devDependencies": {

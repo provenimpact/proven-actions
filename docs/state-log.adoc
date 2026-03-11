@@ -1,6 +1,19 @@
 = State Transition Log
 :last-updated: 2026-03-11
 
+== TRANSITION-003
+:date: 2026-03-11
+:intent: Fix failing Skill Stats GitHub Action — replace tiktoken (WASM) with js-tiktoken (pure JS) to resolve __dirname ESM incompatibility
+:type: Dependency maintenance
+:risk: Medium
+:features: skill-stats (dependency change)
+:desired-state: Skill Stats workflow passes — tiktoken tokenization works in the ESM bundle without WASM dependency
+:prior-state: Skill Stats workflow fails with "ReferenceError: __dirname is not defined in ES module scope" because tiktoken's CJS entry uses __dirname and requires a .wasm file not present in the bundle
+:capabilities-invoked: needs-dependencies (replace tiktoken with js-tiktoken), needs-adr (amend ADR-0002)
+:constraints-checked: Licensing (pass — js-tiktoken is MIT)
+:result: Achieved
+:artifacts-modified: package.json, package-lock.json, src/analyzer.ts, docs/adrs/0002-use-tiktoken-cl100k-base-tokenizer.adoc, dist/index.js, dist/index.js.map, docs/state-log.adoc
+
 == TRANSITION-002
 :date: 2026-03-11
 :intent: Local CLI for running skill-stats without GitHub Actions, with documentation trail catch-up
