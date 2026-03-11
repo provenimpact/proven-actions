@@ -93,7 +93,7 @@ describe("Integration: full pipeline", () => {
     // Badge
     const badge = generateBadgeJson(analysis);
     expect(badge.schemaVersion).toBe(1);
-    expect(badge.label).toBe("skill tokens");
+    expect(badge.label).toBe("code-review");
     expect(badge.message).toContain("lightweight");
     expect(badge.color).toBe("brightgreen");
 

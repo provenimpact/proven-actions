@@ -3,6 +3,18 @@
 [![CI](https://github.com/provenimpact/proven-actions/actions/workflows/ci.yml/badge.svg)](https://github.com/provenimpact/proven-actions/actions/workflows/ci.yml)
 [![Skill Stats](https://github.com/provenimpact/proven-actions/actions/workflows/skill-stats.yml/badge.svg)](https://github.com/provenimpact/proven-actions/actions/workflows/skill-stats.yml)
 
+<!-- Badge JSON hosted in a GitHub Gist, served via Shields.io endpoint badges (ADR-0004). -->
+![proven-needs](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/proven-needs-badge.json)
+![needs-features](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-features-badge.json)
+![needs-design](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-design-badge.json)
+![needs-implementation](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-implementation-badge.json)
+![needs-architecture](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-architecture-badge.json)
+![needs-tasks](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-tasks-badge.json)
+![needs-adr](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-adr-badge.json)
+![needs-dependencies](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-dependencies-badge.json)
+![needs-security](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-security-badge.json)
+![needs-compliance](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-compliance-badge.json)
+
 A GitHub Action that analyzes [Agent Skills](https://agentskills.io) and reports token cost statistics. Know exactly how much LLM context your skills consume before your agents load them.
 
 ## Why?
@@ -16,27 +28,6 @@ Agent Skills use [progressive disclosure](https://agentskills.io/client-implemen
 | **Tier 3** (Resources) | Scripts, references, assets | When instructions reference them |
 
 **skill-stats** measures each tier so you can track context cost, optimize skill size, and communicate impact to users via badges.
-
-## Dogfood: Our Own Skills
-
-We run skill-stats on the skills in this repository. Here are the results:
-
-<!-- Badge URLs point to a GitHub Gist via Shields.io endpoint badges (ADR-0004).
-     To configure: create a gist, set GIST_ID repo variable and GIST_SECRET repo secret.
-     Then replace GIST_OWNER and GIST_ID below with your values. -->
-
-| Skill | Badge |
-|-------|-------|
-| proven-needs | ![proven-needs](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/proven-needs-badge.json) |
-| needs-features | ![needs-features](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-features-badge.json) |
-| needs-design | ![needs-design](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-design-badge.json) |
-| needs-implementation | ![needs-implementation](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-implementation-badge.json) |
-| needs-architecture | ![needs-architecture](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-architecture-badge.json) |
-| needs-tasks | ![needs-tasks](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-tasks-badge.json) |
-| needs-adr | ![needs-adr](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-adr-badge.json) |
-| needs-dependencies | ![needs-dependencies](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-dependencies-badge.json) |
-| needs-security | ![needs-security](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-security-badge.json) |
-| needs-compliance | ![needs-compliance](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tjakobsson/c694054898dc77add2e2e0d6d5c19113/raw/needs-compliance-badge.json) |
 
 ## Quick Start
 

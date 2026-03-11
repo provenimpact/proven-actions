@@ -113,11 +113,22 @@ for name in "${SKILL_NAMES[@]}"; do
   echo "$PLACEHOLDER" > "$TMPDIR/${name}-badge.json"
 done
 
+# Create an index file so the gist title shows the repo name
+# (gist title = first filename alphabetically; underscore sorts first)
+REPO_SHORT="${REPO#*/}"
+cat > "$TMPDIR/_${REPO_SHORT}.md" <<INDEXEOF
+# ${REPO}
+
+Shields.io badge JSON files for [${REPO_SHORT}](https://github.com/${REPO}).
+
+Updated automatically by the [Skill Stats workflow](https://github.com/${REPO}/actions/workflows/skill-stats.yml).
+INDEXEOF
+
 # --- Create the gist ---
 
 echo "Creating public gist with ${#SKILL_NAMES[@]} badge files..."
 
-GIST_URL=$(gh gist create --public --desc "skill-stats badges for $REPO" "$TMPDIR"/*-badge.json)
+GIST_URL=$(gh gist create --public --desc "skill-stats badges for $REPO" "$TMPDIR"/_*.md "$TMPDIR"/*-badge.json)
 
 # Extract gist ID from URL (last path segment)
 GIST_ID="${GIST_URL##*/}"

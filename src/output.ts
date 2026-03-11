@@ -29,7 +29,7 @@ export function generateBadgeJson(analysis: SkillAnalysis): BadgeJson {
   const tokenStr = formatTokenCount(analysis.maxTokens);
   return {
     schemaVersion: 1,
-    label: "skill tokens",
+    label: analysis.skillName,
     message: `${tokenStr} (${analysis.rating})`,
     color: analysis.badgeColor,
   };

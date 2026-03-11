@@ -49,7 +49,7 @@ describe("generateBadgeJson", () => {
     const badge = generateBadgeJson(makeAnalysis({ maxTokens: 500, rating: "lightweight", badgeColor: "brightgreen" }));
     expect(badge).toEqual({
       schemaVersion: 1,
-      label: "skill tokens",
+      label: "test-skill",
       message: "500 (lightweight)",
       color: "brightgreen",
     });
