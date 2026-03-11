@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".opencode/skills/**"
+      - ".github/workflows/skill-stats.yml"
       - "action.yml"
       - "src/**"
       - "dist/**"
@@ -32,7 +33,7 @@ jobs:
           badge-output-dir: ./badges
 
       - name: Publish badges to gist
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GIST_SECRET: ${{ secrets.GIST_SECRET }}
           GIST_ID: ${{ vars.GIST_ID }}
